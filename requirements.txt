@@ -1,1 +1,2 @@
 streamlit>=1.18.0
+rubik-solver>=1.1.5
