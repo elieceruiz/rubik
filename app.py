@@ -82,7 +82,7 @@ if st.button("Nuevo cubo desordenado"):
     st.session_state.scramble = scramble
     st.session_state.solve_seq = scramble[::-1]
     st.session_state.step = 0
-    st.experimental_rerun()
+    st.rerun()
 
 st.markdown("### Estado actual del cubo (6 caras)")
 dibujar_cubo(st.session_state.cube)
@@ -93,7 +93,7 @@ if st.session_state.step < len(st.session_state.solve_seq):
     if st.button("Aplicar siguiente movimiento"):
         st.session_state.cube = aplicar_movimiento(st.session_state.cube, siguiente)
         st.session_state.step += 1
-        st.experimental_rerun()
+        st.rerun()
 else:
     st.success("¡Cubo resuelto! Puedes mezclar de nuevo o experimentar.")
 
