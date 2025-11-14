@@ -1,6 +1,12 @@
 import streamlit as st
 import random
 import copy
+from pymongo import MongoClient
+
+mongo_uri = st.secrets["mongo_uri"]
+client = MongoClient(mongo_uri)
+db = client.rubikdb
+collection = db.cubos
 
 FACE_NAMES = ["Arriba", "Frontal", "Derecha", "Izquierda", "Abajo", "Atrás"]
 COLOR_MAP = {
@@ -60,20 +66,11 @@ def dibujar_cubo(cube):
     for nombre in FACE_NAMES:
         st.markdown(dibujar_cara(cube[nombre], nombre), unsafe_allow_html=True)
 
-st.title("Rubik paso a paso - instrucciones didácticas")
+st.title("Rubik paso a paso - instrucciones didácticas + Guardar en MongoDB")
 st.caption("Siempre inicia desordenado y te guía un movimiento claro por paso.")
 
-# Esto asegura que SIEMPRE inicia desordenado al cargar/reiniciar
-if "init" not in st.session_state:
-    cube, scramble = mezclar_cubo(7)
-    st.session_state.cube = cube
-    st.session_state.scramble = scramble
-    st.session_state.solve_seq = scramble[::-1]
-    st.session_state.step = 0
-    st.session_state.init = True
-
-# Botón para nuevo cubo desordenado
-if st.button("Nuevo cubo desordenado"):
+# Botón para mezclar primero SIEMPRE
+if st.button("Nuevo cubo desordenado") or "cube" not in st.session_state:
     cube, scramble = mezclar_cubo(7)
     st.session_state.cube = cube
     st.session_state.scramble = scramble
@@ -92,4 +89,13 @@ if st.session_state.step < len(st.session_state.solve_seq):
 else:
     st.success("¡Cubo resuelto! Puedes mezclar de nuevo o experimentar.")
 
-st.caption("Sin 'st.rerun' ni experimental, sí inicia y actualiza desordenado cada vez.")
+if st.button("Guardar estado actual en MongoDB"):
+    doc = {
+        "cube": st.session_state.cube,
+        "mezcla": st.session_state.scramble,
+        "pasos_restantes": len(st.session_state.solve_seq) - st.session_state.step
+    }
+    result = collection.insert_one(doc)
+    st.success(f"Estado guardado en MongoDB (ID: {result.inserted_id})")
+
+st.caption("Puedes guardar cualquier estado del cubo y sus pasos en tu base MongoDB con tu mongo_uri de Secrets.")
