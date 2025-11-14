@@ -1,5 +1,4 @@
-streamlit
-pyvista
-stpyvista
-pymongo
-numpy
+streamlit>=1.20.0
+plotly>=5.10.0
+pymongo>=4.3.3
+numpy>=1.21.0
