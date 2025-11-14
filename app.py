@@ -1,106 +1,67 @@
 import streamlit as st
+import numpy as np
+import plotly.graph_objects as go
 import random
-import copy
-from pymongo import MongoClient
 
-mongo_uri = st.secrets["mongo_uri"]
-client = MongoClient(mongo_uri)
-db = client.rubikdb
-collection = db.cubos
+# Nombres y colores
+COLORS = ['green', 'blue', 'white', 'yellow', 'orange', 'red']
+NAMES = ['Frontal', 'Atrás', 'Arriba', 'Abajo', 'Izquierda', 'Derecha']
 
-FACE_NAMES = ["Arriba", "Frontal", "Derecha", "Izquierda", "Abajo", "Atrás"]
-COLOR_MAP = {
-    "Arriba": "white", "Frontal": "green", "Derecha": "red",
-    "Izquierda": "orange", "Abajo": "yellow", "Atrás": "blue"
-}
-COLOR_HEX = {
-    "white":"#FFFFFF", "yellow":"#ffec00", "green":"#1eab39",
-    "blue":"#0854aa", "orange":"#ff9900", "red":"#e6000a"
-}
-MOVES = [
-    ("Arriba", "derecha"), ("Arriba", "izquierda"),
-    ("Frontal", "derecha"), ("Frontal", "izquierda"),
-    ("Derecha", "abajo"), ("Derecha", "arriba")
-]
-INSTRUCTIONS = {
-    ("Arriba", "derecha"): "Gira la cara de arriba hacia la derecha.",
-    ("Arriba", "izquierda"): "Gira la cara de arriba hacia la izquierda.",
-    ("Frontal", "derecha"): "Gira la cara frontal hacia la derecha.",
-    ("Frontal", "izquierda"): "Gira la cara frontal hacia la izquierda.",
-    ("Derecha", "abajo"): "Gira la cara derecha hacia abajo.",
-    ("Derecha", "arriba"): "Gira la cara derecha hacia arriba."
-}
-
-def cubo_resuelto():
-    return {nombre: [COLOR_MAP[nombre]]*9 for nombre in FACE_NAMES}
-
-def aplicar_movimiento(cube, move):
-    c = copy.deepcopy(cube)
-    cara, direccion = move
-    if direccion == "derecha" or direccion == "abajo":
-        cube[cara] = [c[cara][6],c[cara][3],c[cara][0],c[cara][7],c[cara][4],c[cara][1],c[cara][8],c[cara][5],c[cara][2]]
-    elif direccion == "izquierda" or direccion == "arriba":
-        for _ in range(3):
-            cube = aplicar_movimiento(cube, (cara, "derecha" if direccion == "izquierda" else "abajo"))
+def crear_cubo_resuelto():
+    # Cada pieza tiene su color principal siguiendo el eje correspondiente
+    cube = {}
+    for x in [-1, 0, 1]:
+        for y in [-1, 0, 1]:
+            for z in [-1, 0, 1]:
+                if (x,y,z) != (0,0,0):
+                    key = (x, y, z)
+                    # Asignar color dominante según posición
+                    if z == 1: color = 'green'
+                    elif z == -1: color = 'blue'
+                    elif y == 1: color = 'white'
+                    elif y == -1: color = 'yellow'
+                    elif x == 1: color = 'red'
+                    elif x == -1: color = 'orange'
+                    else: color = 'gray'
+                    cube[key] = color
     return cube
 
-def mezclar_cubo(n=7):
-    cube = cubo_resuelto()
-    mezcla = random.choices(MOVES, k=n)
-    for mov in mezcla:
-        cube = aplicar_movimiento(cube, mov)
-    return cube, mezcla
+def mezclar_cubo(cube, n=10):
+    keys = list(cube.keys())
+    colores = list(cube.values())
+    for _ in range(n):
+        random.shuffle(colores)
+    mixed = dict(zip(keys, colores))
+    return mixed
 
-def dibujar_cara(face, nombre):
-    html = f"<b>{nombre}</b><br><table style='border-collapse:collapse;border:2px solid black;'>"
-    for i in range(3):
-        html += "<tr>"
-        for j in range(3):
-            color = COLOR_HEX[face[3*i+j]]
-            html += f"<td style='background:{color};width:30px;height:30px;border:1px solid #444'></td>"
-        html += "</tr>"
-    html += "</table>"
-    return html
-
-def dibujar_cubo(cube):
-    for nombre in FACE_NAMES:
-        st.markdown(dibujar_cara(cube[nombre], nombre), unsafe_allow_html=True)
-
-st.title("Rubik paso a paso - SIEMPRE inicia desordenado")
-
-# ¡Solución! --- Mezclar SIEMPRE al iniciar
-if st.session_state.get("force_mezcla", True):
-    cube, scramble = mezclar_cubo(7)
-    st.session_state.cube = cube
-    st.session_state.scramble = scramble
-    st.session_state.solve_seq = scramble[::-1]
-    st.session_state.step = 0
-    st.session_state.force_mezcla = False
-
-if st.button("Nuevo cubo desordenado"):
-    cube, scramble = mezclar_cubo(7)
-    st.session_state.cube = cube
-    st.session_state.scramble = scramble
-    st.session_state.solve_seq = scramble[::-1]
-    st.session_state.step = 0
-
-st.markdown("### Estado actual del cubo (6 caras)")
-dibujar_cubo(st.session_state.cube)
-
-if st.session_state.step < len(st.session_state.solve_seq):
-    siguiente = st.session_state.solve_seq[st.session_state.step]
-    st.info(f"Siguiente movimiento: {INSTRUCTIONS[siguiente]}")
-    if st.button("Aplicar siguiente movimiento"):
-        st.session_state.cube = aplicar_movimiento(st.session_state.cube, siguiente)
-        st.session_state.step += 1
-else:
-    st.success("¡Cubo resuelto! Puedes mezclar de nuevo o experimentar.")
-
-if st.button("Guardar estado actual en MongoDB"):
-    doc = {
-        "cube": st.session_state.cube,
-        "mezcla": st.session_state.scramble,
-        "pasos_restantes": len(st.session_state.solve_seq) - st.session_state.step
+def plot_cubo3d(cube_dict):
+    fig = go.Figure()
+    colors_plotly = {
+        'white':'#FFFFFF', 'yellow':'#ffec00', 'green':'#1eab39',
+        'blue':'#0854aa', 'orange':'#ff9900', 'red':'#e6000a', 'gray':'#c1c1c1'
     }
-    result = collection.insert_one(doc)
-    st.success(f"Estado guardado en MongoDB (ID: {result.inserted_id})")
+    for key, color in cube_dict.items():
+        x, y, z = key
+        fig.add_trace(go.Scatter3d(
+            x=[x], y=[y], z=[z],
+            mode='markers',
+            marker=dict(size=22, color=colors_plotly[color], line=dict(width=1, color='black'))
+        ))
+    fig.update_layout(scene=dict(
+        xaxis=dict(nticks=3, range=[-1.5,1.5], backgroundcolor="rgba(0,0,0,0)"),
+        yaxis=dict(nticks=3, range=[-1.5,1.5], backgroundcolor="rgba(0,0,0,0)"),
+        zaxis=dict(nticks=3, range=[-1.5,1.5], backgroundcolor="rgba(0,0,0,0)"),
+        aspectratio=dict(x=1, y=1, z=1),
+    ), margin=dict(l=0,r=0,b=0,t=25), width=520, height=520, title="Cubo Rubik 3D")
+    return fig
+
+st.title("Rubik 3D - Visualización simple y mezclada")
+
+if st.button("Nuevo cubo desordenado") or "cube3d" not in st.session_state:
+    base = crear_cubo_resuelto()
+    st.session_state.cube3d = mezclar_cubo(base, 15)
+
+fig = plot_cubo3d(st.session_state.cube3d)
+st.plotly_chart(fig, use_container_width=True)
+
+st.info("Cada esfera es una pieza. Pulsa el botón para mezclar de nuevo. ¿Quieres movimientos paso a paso y guardar/quitar piezas? Avísame.")
