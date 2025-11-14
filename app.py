@@ -4,30 +4,47 @@ import numpy as np
 import plotly.graph_objects as go
 from pymongo import MongoClient
 
-# MongoDB conexión
-mongo_uri = st.secrets["mongo_uri"]
+# --- CONFIGURACIÓN DE MONGODB ---
+mongo_uri = st.secrets["mongo_uri"] # Define tu uri en los secrets de Streamlit
 client = MongoClient(mongo_uri)
 db = client.rubikdb
 collection = db.sessions
 
-# Crear posiciones de 26 piezas del cubo Rubik visibles (excluye centro)
+# --- CREAR LAS POSICIONES DE LAS 26 PIEZAS (excluye el centro) ---
 def create_positions():
     offset = 1.1
     positions = []
     for x in [-offset, 0, offset]:
         for y in [-offset, 0, offset]:
             for z in [-offset, 0, offset]:
-                # Excluir posición central (0,0,0)
                 if not (x == 0 and y == 0 and z == 0):
-                    positions.append(np.array([x,y,z]))
+                    positions.append(np.array([x, y, z]))
     return positions
 
-# Generar mezcla aleatoria de movimientos
+# --- ASIGNAR COLORES SEGÚN POSICIÓN EN EL CUBO ---
+def color_por_posicion(pos):
+    x, y, z = pos
+    if z > 0.9:
+        return 'green'    # Frente
+    elif z < -0.9:
+        return 'blue'     # Atrás
+    elif y > 0.9:
+        return 'white'    # Arriba
+    elif y < -0.9:
+        return 'yellow'   # Abajo
+    elif x > 0.9:
+        return 'red'      # Derecha
+    elif x < -0.9:
+        return 'orange'   # Izquierda
+    else:
+        return 'gray'     # Centro (por si acaso)
+
+# --- GENERAR UNA MEZCLA ALEATORIA DE MOVIMIENTOS ---
 def generar_mezcla(num=15):
     movimientos = ["R", "Ri", "L", "Li", "U", "Ui", "D", "Di", "F", "Fi", "B", "Bi"]
     return random.choices(movimientos, k=num)
 
-# Explicación simplificada de movimientos
+# --- TEXTO EXPLICATIVO DE CADA MOVIMIENTO ---
 explicacion = {
     "R": "Gira la cara derecha en el sentido horario",
     "Ri": "Gira la cara derecha en sentido antihorario",
@@ -43,34 +60,29 @@ explicacion = {
     "Bi": "Gira la cara trasera en sentido antihorario",
 }
 
-# Rotar posiciones de piezas en 3D según movimiento simplificado
+# --- ROTAR LAS POSICIONES EN 3D SEGÚN MOVIMIENTO ---
 def rotar_piezas(positions, movimiento):
-    angle = np.pi/2 if len(movimiento) == 1 else -np.pi/2
+    angle = np.pi / 2 if len(movimiento) == 1 else -np.pi / 2
     axis = movimiento[0]
-    
+
     def rotate(pos, axis, angle):
-        x,y,z = pos
-        if axis == "R" or axis == "L":
-            # eje X
-            y_new = y*np.cos(angle) - z*np.sin(angle)
-            z_new = y*np.sin(angle) + z*np.cos(angle)
+        x, y, z = pos
+        if axis in ["R", "L"]:
+            y_new = y * np.cos(angle) - z * np.sin(angle)
+            z_new = y * np.sin(angle) + z * np.cos(angle)
             x_new = x
-        elif axis == "U" or axis == "D":
-            # eje Y
-            x_new = x*np.cos(angle) + z*np.sin(angle)
-            z_new = -x*np.sin(angle) + z*np.cos(angle)
+        elif axis in ["U", "D"]:
+            x_new = x * np.cos(angle) + z * np.sin(angle)
+            z_new = -x * np.sin(angle) + z * np.cos(angle)
             y_new = y
-        elif axis == "F" or axis == "B":
-            # eje Z
-            x_new = x*np.cos(angle) - y*np.sin(angle)
-            y_new = x*np.sin(angle) + y*np.cos(angle)
+        elif axis in ["F", "B"]:
+            x_new = x * np.cos(angle) - y * np.sin(angle)
+            y_new = x * np.sin(angle) + y * np.cos(angle)
             z_new = z
         else:
-            x_new, y_new, z_new = x,y,z
-        # Redondear para evitar error acumulado
-        return np.array([round(x_new,2), round(y_new,2), round(z_new,2)])
-    
-    # Decidir qué piezas rotar según movimiento
+            x_new, y_new, z_new = x, y, z
+        return np.array([round(x_new, 2), round(y_new, 2), round(z_new, 2)])
+
     def debe_rotar(pos, cara):
         threshold = 0.9
         if cara == "R":
@@ -86,7 +98,7 @@ def rotar_piezas(positions, movimiento):
         if cara == "B":
             return pos[2] < -threshold
         return False
-    
+
     new_positions = []
     for pos in positions:
         if debe_rotar(pos, axis):
@@ -95,24 +107,25 @@ def rotar_piezas(positions, movimiento):
             new_positions.append(pos)
     return new_positions
 
-# Visualizar cubo Rubik 3D con plotly
-def plot_cubo(positions):
+# --- FUNCIÓN PLOTLY PARA VISUALIZAR EL CUBO EN 3D CON COLORES ---
+def plot_cubo_colores(positions):
     fig = go.Figure()
-    cube_size = 0.9
     for pos in positions:
-        x,y,z = pos
-        # Crear cubo como scatter3d de 8 vértices para cada pieza (simplificado como puntos)
+        x, y, z = pos
+        color = color_por_posicion(pos)
         fig.add_trace(go.Scatter3d(
             x=[x], y=[y], z=[z],
             mode='markers',
-            marker=dict(size=20, color='cyan', line=dict(width=2, color='black'))
+            marker=dict(size=20, color=color, line=dict(width=2, color='black'))
         ))
     fig.update_layout(scene=dict(aspectmode='cube'))
-    fig.update_layout(margin=dict(l=0, r=0, t=0, b=0))
+    fig.update_layout(margin=dict(l=0, r=0, t=0, b=0),
+                      showlegend=False)
     return fig
 
+# --- APP PRINCIPAL STREAMLIT ---
 def main():
-    st.title("Cubo Rubik 3D con Plotly - Aprendizaje interactivo")
+    st.title("Cubo Rubik 3D con colores - Aprendizaje interactivo")
 
     if "positions" not in st.session_state:
         st.session_state.positions = create_positions()
@@ -136,8 +149,8 @@ def main():
     else:
         st.success("¡Has completado la mezcla!")
 
-    # Mostrar cubo 3D
-    fig = plot_cubo(st.session_state.positions)
+    # Visualización 3D con colores
+    fig = plot_cubo_colores(st.session_state.positions)
     st.plotly_chart(fig, use_container_width=True)
 
     # Botón para avanzar
