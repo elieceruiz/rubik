@@ -5,12 +5,12 @@ import plotly.graph_objects as go
 from pymongo import MongoClient
 
 # --- CONFIGURACIÓN DE MONGODB ---
-mongo_uri = st.secrets["mongo_uri"] # Define tu uri en los secrets de Streamlit
+mongo_uri = st.secrets["mongo_uri"] # Tu uri secreta en Streamlit
 client = MongoClient(mongo_uri)
 db = client.rubikdb
 collection = db.sessions
 
-# --- CREAR LAS POSICIONES DE LAS 26 PIEZAS (excluye el centro) ---
+# --- CREAR POSICIONES DE 26 PIEZAS DEL CUBO (excluye centro interno) ---
 def create_positions():
     offset = 1.1
     positions = []
@@ -21,25 +21,25 @@ def create_positions():
                     positions.append(np.array([x, y, z]))
     return positions
 
-# --- ASIGNAR COLORES SEGÚN POSICIÓN EN EL CUBO ---
+# --- ASIGNAR COLOR PRINCIPAL A CADA PIEZA SEGÚN CARA ---
 def color_por_posicion(pos):
     x, y, z = pos
     if z > 0.9:
-        return 'green'    # Frente
+        return 'green'
     elif z < -0.9:
-        return 'blue'     # Atrás
+        return 'blue'
     elif y > 0.9:
-        return 'white'    # Arriba
+        return 'white'
     elif y < -0.9:
-        return 'yellow'   # Abajo
+        return 'yellow'
     elif x > 0.9:
-        return 'red'      # Derecha
+        return 'red'
     elif x < -0.9:
-        return 'orange'   # Izquierda
+        return 'orange'
     else:
-        return 'gray'     # Centro (por si acaso)
+        return 'gray'
 
-# --- GENERAR UNA MEZCLA ALEATORIA DE MOVIMIENTOS ---
+# --- GENERAR MEZCLA DE MOVIMIENTOS ---
 def generar_mezcla(num=15):
     movimientos = ["R", "Ri", "L", "Li", "U", "Ui", "D", "Di", "F", "Fi", "B", "Bi"]
     return random.choices(movimientos, k=num)
@@ -60,7 +60,7 @@ explicacion = {
     "Bi": "Gira la cara trasera en sentido antihorario",
 }
 
-# --- ROTAR LAS POSICIONES EN 3D SEGÚN MOVIMIENTO ---
+# --- ROTAR POSICIONES SEGÚN MOVIMIENTO ---
 def rotar_piezas(positions, movimiento):
     angle = np.pi / 2 if len(movimiento) == 1 else -np.pi / 2
     axis = movimiento[0]
@@ -107,25 +107,40 @@ def rotar_piezas(positions, movimiento):
             new_positions.append(pos)
     return new_positions
 
-# --- FUNCIÓN PLOTLY PARA VISUALIZAR EL CUBO EN 3D CON COLORES ---
-def plot_cubo_colores(positions):
+# --- VISUALIZAR CUBITO EN PLOTLY: CADA PIEZA COMO CUBO COMPLETO Y COLOR ---
+def plot_cubo_caras(positions):
     fig = go.Figure()
+    cube_size = 0.33
     for pos in positions:
         x, y, z = pos
         color = color_por_posicion(pos)
-        fig.add_trace(go.Scatter3d(
-            x=[x], y=[y], z=[z],
-            mode='markers',
-            marker=dict(size=20, color=color, line=dict(width=2, color='black'))
+        # 8 vértices del cubo pequeño
+        verts = np.array([
+            [x-cube_size, y-cube_size, z-cube_size],
+            [x+cube_size, y-cube_size, z-cube_size],
+            [x+cube_size, y+cube_size, z-cube_size],
+            [x-cube_size, y+cube_size, z-cube_size],
+            [x-cube_size, y-cube_size, z+cube_size],
+            [x+cube_size, y-cube_size, z+cube_size],
+            [x+cube_size, y+cube_size, z+cube_size],
+            [x-cube_size, y+cube_size, z+cube_size],
+        ])
+        # Caras del cubo (12 triángulos, simplificación para que se vea sólido)
+        i = [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5]
+        j = [1, 3, 2, 6, 3, 7, 0, 4, 5, 1, 6, 2]
+        k = [3, 7, 6, 5, 7, 6, 4, 0, 1, 5, 2, 6]
+        fig.add_trace(go.Mesh3d(
+            x=verts[:,0], y=verts[:,1], z=verts[:,2],
+            color=color, opacity=0.9, flatshading=True,
+            i=i, j=j, k=k, showscale=False
         ))
     fig.update_layout(scene=dict(aspectmode='cube'))
-    fig.update_layout(margin=dict(l=0, r=0, t=0, b=0),
-                      showlegend=False)
+    fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
     return fig
 
-# --- APP PRINCIPAL STREAMLIT ---
+# --- APP PRINCIPAL ---
 def main():
-    st.title("Cubo Rubik 3D con colores - Aprendizaje interactivo")
+    st.title("Cubo Rubik 3D - Caras completas pintadas")
 
     if "positions" not in st.session_state:
         st.session_state.positions = create_positions()
@@ -141,7 +156,6 @@ def main():
         st.session_state.mezcla = generar_mezcla()
         st.session_state.indice = 0
 
-    # Mostrar explicación del movimiento actual
     if st.session_state.indice < len(st.session_state.mezcla):
         mov = st.session_state.mezcla[st.session_state.indice]
         st.write(f"Movimiento actual: {mov}")
@@ -149,11 +163,9 @@ def main():
     else:
         st.success("¡Has completado la mezcla!")
 
-    # Visualización 3D con colores
-    fig = plot_cubo_colores(st.session_state.positions)
+    fig = plot_cubo_caras(st.session_state.positions)
     st.plotly_chart(fig, use_container_width=True)
 
-    # Botón para avanzar
     if st.button("Aplicar siguiente movimiento"):
         if st.session_state.indice < len(st.session_state.mezcla):
             movimiento = st.session_state.mezcla[st.session_state.indice]
@@ -162,7 +174,6 @@ def main():
         else:
             st.success("Ya se aplicaron todos los movimientos.")
 
-    # Guardar estado en MongoDB
     if st.button("Guardar estado actual"):
         estado = {
             "mezcla": st.session_state.mezcla,
