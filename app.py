@@ -1,186 +1,124 @@
 import streamlit as st
 import random
 import numpy as np
-import plotly.graph_objects as go
-from pymongo import MongoClient
 
-# --- CONFIGURACIÓN DE MONGODB ---
-mongo_uri = st.secrets["mongo_uri"] # Tu uri secreta en Streamlit
-client = MongoClient(mongo_uri)
-db = client.rubikdb
-collection = db.sessions
+# Colores estándar por cara Rubik
+FACE_COLORS = {
+    "U": "white",   # Arriba
+    "D": "yellow",  # Abajo
+    "F": "green",   # Frente
+    "B": "blue",    # Atrás
+    "L": "orange",  # Izquierda
+    "R": "red"      # Derecha
+}
 
-# --- CREAR POSICIONES DE 26 PIEZAS DEL CUBO (excluye centro interno) ---
-def create_positions():
-    offset = 1.1
-    positions = []
-    for x in [-offset, 0, offset]:
-        for y in [-offset, 0, offset]:
-            for z in [-offset, 0, offset]:
-                if not (x == 0 and y == 0 and z == 0):
-                    positions.append(np.array([x, y, z]))
-    return positions
+# Movimientos disponibles
+ALL_MOVES = ["R", "Ri", "L", "Li", "U", "Ui", "D", "Di", "F", "Fi", "B", "Bi"]
 
-# --- ASIGNAR COLOR PRINCIPAL A CADA PIEZA SEGÚN CARA ---
-def color_por_posicion(pos):
-    x, y, z = pos
-    if z > 0.9:
-        return 'green'
-    elif z < -0.9:
-        return 'blue'
-    elif y > 0.9:
-        return 'white'
-    elif y < -0.9:
-        return 'yellow'
-    elif x > 0.9:
-        return 'red'
-    elif x < -0.9:
-        return 'orange'
-    else:
-        return 'gray'
-
-# --- GENERAR MEZCLA DE MOVIMIENTOS ---
-def generar_mezcla(num=15):
-    movimientos = ["R", "Ri", "L", "Li", "U", "Ui", "D", "Di", "F", "Fi", "B", "Bi"]
-    return random.choices(movimientos, k=num)
-
-# --- TEXTO EXPLICATIVO DE CADA MOVIMIENTO ---
-explicacion = {
-    "R": "Gira la cara derecha en el sentido horario",
+MOVEMENT_EXPLAIN = {
+    "R": "Gira la cara derecha en sentido horario",
     "Ri": "Gira la cara derecha en sentido antihorario",
-    "L": "Gira la cara izquierda en el sentido horario",
+    "L": "Gira la cara izquierda en sentido horario",
     "Li": "Gira la cara izquierda en sentido antihorario",
-    "U": "Gira la cara superior en el sentido horario",
+    "U": "Gira la cara superior en sentido horario",
     "Ui": "Gira la cara superior en sentido antihorario",
-    "D": "Gira la cara inferior en el sentido horario",
+    "D": "Gira la cara inferior en sentido horario",
     "Di": "Gira la cara inferior en sentido antihorario",
-    "F": "Gira la cara frontal en el sentido horario",
+    "F": "Gira la cara frontal en sentido horario",
     "Fi": "Gira la cara frontal en sentido antihorario",
-    "B": "Gira la cara trasera en el sentido horario",
+    "B": "Gira la cara trasera en sentido horario",
     "Bi": "Gira la cara trasera en sentido antihorario",
 }
 
-# --- ROTAR POSICIONES SEGÚN MOVIMIENTO ---
-def rotar_piezas(positions, movimiento):
-    angle = np.pi / 2 if len(movimiento) == 1 else -np.pi / 2
-    axis = movimiento[0]
+# Inicializar cubo resuelto: cada cara es una lista de 9 colores
+def get_face_colors():
+    return {face: [FACE_COLORS[face]] * 9 for face in FACE_COLORS}
 
-    def rotate(pos, axis, angle):
-        x, y, z = pos
-        if axis in ["R", "L"]:
-            y_new = y * np.cos(angle) - z * np.sin(angle)
-            z_new = y * np.sin(angle) + z * np.cos(angle)
-            x_new = x
-        elif axis in ["U", "D"]:
-            x_new = x * np.cos(angle) + z * np.sin(angle)
-            z_new = -x * np.sin(angle) + z * np.cos(angle)
-            y_new = y
-        elif axis in ["F", "B"]:
-            x_new = x * np.cos(angle) - y * np.sin(angle)
-            y_new = x * np.sin(angle) + y * np.cos(angle)
-            z_new = z
-        else:
-            x_new, y_new, z_new = x, y, z
-        return np.array([round(x_new, 2), round(y_new, 2), round(z_new, 2)])
+# Rotación realista de stickers en cada cara (solo R y Ri de ejemplo, puedes agregar otras)
+def rotate_R(faces):
+    # Girar stickers de la cara derecha
+    old = faces["R"].copy()
+    faces["R"][0], faces["R"][1], faces["R"][2], faces["R"][3], faces["R"][5], faces["R"][6], faces["R"][7], faces["R"][8] = old[6], old[3], old[0], old[7], old[1], old[8], old[5], old[2]
+    # Girar stickers de las 4 adyacentes, simplificado
+    f = faces["F"].copy()
+    u = faces["U"].copy()
+    b = faces["B"].copy()
+    d = faces["D"].copy()
+    faces["F"][2], faces["F"][5], faces["F"][8] = u[2], u[5], u[8]
+    faces["U"][2], faces["U"][5], faces["U"][8] = b[6], b[3], b[0]
+    faces["B"][0], faces["B"][3], faces["B"][6] = d[2], d[5], d[8]
+    faces["D"][2], faces["D"][5], faces["D"][8] = f[2], f[5], f[8]
+    return faces
 
-    def debe_rotar(pos, cara):
-        threshold = 0.9
-        if cara == "R":
-            return pos[0] > threshold
-        if cara == "L":
-            return pos[0] < -threshold
-        if cara == "U":
-            return pos[1] > threshold
-        if cara == "D":
-            return pos[1] < -threshold
-        if cara == "F":
-            return pos[2] > threshold
-        if cara == "B":
-            return pos[2] < -threshold
-        return False
+def rotate_Ri(faces):
+    # Girar R inversa (antihorario): aplicar horario 3 veces
+    for _ in range(3):
+        faces = rotate_R(faces)
+    return faces
 
-    new_positions = []
-    for pos in positions:
-        if debe_rotar(pos, axis):
-            new_positions.append(rotate(pos, axis, angle))
-        else:
-            new_positions.append(pos)
-    return new_positions
+# Para este ejemplo, solo se implementan R y Ri, puedes añadir lógica para otros movimientos
+ROTATION_FUNCS = {
+    "R": rotate_R,
+    "Ri": rotate_Ri,
+    # Agregar aquí funciones similares para L, Li, U, Ui, D, Di, F, Fi, B, Bi
+}
 
-# --- VISUALIZAR CUBITO EN PLOTLY: CADA PIEZA COMO CUBO COMPLETO Y COLOR ---
-def plot_cubo_caras(positions):
-    fig = go.Figure()
-    cube_size = 0.33
-    for pos in positions:
-        x, y, z = pos
-        color = color_por_posicion(pos)
-        # 8 vértices del cubo pequeño
-        verts = np.array([
-            [x-cube_size, y-cube_size, z-cube_size],
-            [x+cube_size, y-cube_size, z-cube_size],
-            [x+cube_size, y+cube_size, z-cube_size],
-            [x-cube_size, y+cube_size, z-cube_size],
-            [x-cube_size, y-cube_size, z+cube_size],
-            [x+cube_size, y-cube_size, z+cube_size],
-            [x+cube_size, y+cube_size, z+cube_size],
-            [x-cube_size, y+cube_size, z+cube_size],
-        ])
-        # Caras del cubo (12 triángulos, simplificación para que se vea sólido)
-        i = [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5]
-        j = [1, 3, 2, 6, 3, 7, 0, 4, 5, 1, 6, 2]
-        k = [3, 7, 6, 5, 7, 6, 4, 0, 1, 5, 2, 6]
-        fig.add_trace(go.Mesh3d(
-            x=verts[:,0], y=verts[:,1], z=verts[:,2],
-            color=color, opacity=0.9, flatshading=True,
-            i=i, j=j, k=k, showscale=False
-        ))
-    fig.update_layout(scene=dict(aspectmode='cube'))
-    fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
-    return fig
+# Dibuja el cubo plano
+def draw_flat_cube_html(faces):
+    # Disposición clásica del cubo en 2D (U arriba, F centro, etc.)
+    # Muestra cuadrícula en HTML para cada cara
+    def draw_face(face):
+        color_to_code = {"white":"#FFFFFF", "yellow":"#ffec00", "green":"#1eab39", "blue":"#0854aa", "orange":"#ff9900", "red":"#e6000a"}
+        html = '<table style="border-collapse:collapse;border:2px solid black;">'
+        for i in range(3):
+            html += '<tr>'
+            for j in range(3):
+                c = face[3*i+j]
+                html += f'<td style="background:{color_to_code[c]};width:24px;height:24px;border:1px solid #333"></td>'
+            html += '</tr>'
+        html += "</table>"
+        return html
+    st.markdown('<b>Cara superior (U)</b>', unsafe_allow_html=True)
+    st.markdown(draw_face(faces["U"]), unsafe_allow_html=True)
+    st.markdown('<b>Cara frontal (F)</b>', unsafe_allow_html=True)
+    st.markdown(draw_face(faces["F"]), unsafe_allow_html=True)
+    st.markdown('<b>Cara derecha (R)</b>', unsafe_allow_html=True)
+    st.markdown(draw_face(faces["R"]), unsafe_allow_html=True)
+    st.markdown('<b>Cara izquierda (L)</b>', unsafe_allow_html=True)
+    st.markdown(draw_face(faces["L"]), unsafe_allow_html=True)
+    st.markdown('<b>Cara inferior (D)</b>', unsafe_allow_html=True)
+    st.markdown(draw_face(faces["D"]), unsafe_allow_html=True)
+    st.markdown('<b>Cara trasera (B)</b>', unsafe_allow_html=True)
+    st.markdown(draw_face(faces["B"]), unsafe_allow_html=True)
 
-# --- APP PRINCIPAL ---
 def main():
-    st.title("Cubo Rubik 3D - Caras completas pintadas")
+    st.title("Cubo Rubik plano - Amigable y simple")
 
-    if "positions" not in st.session_state:
-        st.session_state.positions = create_positions()
-    if "mezcla" not in st.session_state:
-        st.session_state.mezcla = generar_mezcla()
-        st.session_state.indice = 0
-    
-    st.sidebar.write(f"Paso actual: {st.session_state.indice} / {len(st.session_state.mezcla)}")
-    st.sidebar.write(f"Movimientos faltantes: {len(st.session_state.mezcla) - st.session_state.indice}")
+    if "faces" not in st.session_state:
+        st.session_state.faces = get_face_colors()
+        scramble = random.choices(list(ROTATION_FUNCS.keys()), k=8)
+        st.session_state.scramble = scramble
+        st.session_state.step = 0
 
-    if st.sidebar.button("Generar nueva mezcla"):
-        st.session_state.positions = create_positions()
-        st.session_state.mezcla = generar_mezcla()
-        st.session_state.indice = 0
+    if st.button("Generar nueva mezcla"):
+        st.session_state.faces = get_face_colors()
+        scramble = random.choices(list(ROTATION_FUNCS.keys()), k=8)
+        st.session_state.scramble = scramble
+        st.session_state.step = 0
 
-    if st.session_state.indice < len(st.session_state.mezcla):
-        mov = st.session_state.mezcla[st.session_state.indice]
-        st.write(f"Movimiento actual: {mov}")
-        st.write(explicacion.get(mov, "No hay explicación disponible"))
+    draw_flat_cube_html(st.session_state.faces)
+    st.markdown(f"<b>Movimientos a realizar:</b> {' → '.join(st.session_state.scramble)}", unsafe_allow_html=True)
+
+    # Mostrar cómo resolver, paso a paso
+    if st.session_state.step < len(st.session_state.scramble):
+        next_move = st.session_state.scramble[st.session_state.step]
+        st.markdown(f"### Siguiente paso: {MOVEMENT_EXPLAIN[next_move]}")
+        if st.button("Siguiente movimiento"):
+            rot_func = ROTATION_FUNCS[next_move]
+            st.session_state.faces = rot_func(st.session_state.faces)
+            st.session_state.step += 1
     else:
-        st.success("¡Has completado la mezcla!")
-
-    fig = plot_cubo_caras(st.session_state.positions)
-    st.plotly_chart(fig, use_container_width=True)
-
-    if st.button("Aplicar siguiente movimiento"):
-        if st.session_state.indice < len(st.session_state.mezcla):
-            movimiento = st.session_state.mezcla[st.session_state.indice]
-            st.session_state.positions = rotar_piezas(st.session_state.positions, movimiento)
-            st.session_state.indice += 1
-        else:
-            st.success("Ya se aplicaron todos los movimientos.")
-
-    if st.button("Guardar estado actual"):
-        estado = {
-            "mezcla": st.session_state.mezcla,
-            "indice": st.session_state.indice
-        }
-        collection.insert_one(estado)
-        st.success("Estado guardado en MongoDB")
+        st.success("¡Has completado la secuencia!")
 
 if __name__ == "__main__":
     main()
