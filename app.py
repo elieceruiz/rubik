@@ -152,7 +152,7 @@ if st.button("Nuevo cubo desordenado"):
         st.session_state.cubo3d_col = col
         st.session_state.movs = movs
         st.session_state.step = 0
-    st.experimental_rerun()
+    st.rerun()
 
 st.plotly_chart(plot_cubo3d(st.session_state.cubo3d_pos, st.session_state.cubo3d_col), use_container_width=True)
 
@@ -166,7 +166,7 @@ if st.session_state.step < len(st.session_state.movs):
             nuevo_col = aplicar_giro(st.session_state.cubo3d_col, st.session_state.cubo3d_pos, cara_giro)
             st.session_state.cubo3d_col = nuevo_col
             st.session_state.step += 1
-        st.experimental_rerun()
+        st.rerun()
     st.info(f"{descripcion} ({pasos_restantes} pasos por resolver)")
 else:
     st.success("¡Cubo resuelto! Mezcla de nuevo para otro reto.")
@@ -183,7 +183,7 @@ if st.button("Guardar estado actual en MongoDB"):
     st.success(f"Estado guardado en MongoDB (ID: {result.inserted_id})")
 
 # requirements.txt:
-# streamlit>=1.18.0
+# streamlit>=1.26.0
 # plotly>=5.15.0
 # numpy>=1.21.0
 # pymongo>=4.3.3
