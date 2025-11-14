@@ -95,22 +95,9 @@ def plot_cubo3d(posiciones, colores):
         zaxis=dict(nticks=3, showbackground=False),
         aspectratio=dict(x=1, y=1, z=1),
     ),
-    margin=dict(l=0,r=0,b=0,t=35),
+    margin=dict(l=0, r=0, b=0, t=35),
     width=600,
     height=580)
-    # Etiquetas didácticas
-    fig.add_annotation(dict(font=dict(size=15),
-                            x=0, y=1.2, z=1.2, text="Cara Arriba", showarrow=False, xanchor="left", yanchor="bottom"))
-    fig.add_annotation(dict(font=dict(size=15),
-                            x=0, y=-1.2, z=-1.2, text="Cara Abajo", showarrow=False, xanchor="left", yanchor="top"))
-    fig.add_annotation(dict(font=dict(size=15),
-                            x=0, y=1.2, z=-1.2, text="Cara Trasera", showarrow=False, xanchor="left", yanchor="top"))
-    fig.add_annotation(dict(font=dict(size=15),
-                            x=1.2, y=0, z=0, text="Derecha", showarrow=False))
-    fig.add_annotation(dict(font=dict(size=15),
-                            x=-1.2, y=0, z=0, text="Izquierda", showarrow=False))
-    fig.add_annotation(dict(font=dict(size=15),
-                            x=0, y=0, z=1.2, text="Frontal", showarrow=False))
     return fig
 
 st.title("Rubik 3D didáctico, compacto y con MongoDB")
@@ -137,6 +124,16 @@ if st.button("Nuevo cubo desordenado"):
 
 st.plotly_chart(plot_cubo3d(st.session_state.cubo3d_pos, st.session_state.cubo3d_col), use_container_width=True)
 
+st.markdown("""
+<b>Caras del cubo:</b><br>
+- <span style='color:#1eab39'>Frontal: Verde</span><br>
+- <span style='color:#0854aa'>Atrás: Azul</span><br>
+- <span style='color:#FFFFFF'>Arriba: Blanco</span><br>
+- <span style='color:#ffec00'>Abajo: Amarillo</span><br>
+- <span style='color:#ff9900'>Izquierda: Naranja</span><br>
+- <span style='color:#e6000a'>Derecha: Rojo</span>
+""", unsafe_allow_html=True)
+
 st.markdown("#### Instrucción siguiente")
 if st.session_state.step < len(st.session_state.movs):
     descripcion, didactico = st.session_state.movs[st.session_state.step]
@@ -157,7 +154,7 @@ if st.button("Guardar estado actual en MongoDB"):
     result = collection.insert_one(doc)
     st.success(f"Estado guardado en MongoDB (ID: {result.inserted_id})")
 
-# requirements.txt:
+# Requisitos en requirements.txt:
 # streamlit>=1.18.0
 # plotly>=5.15.0
 # numpy>=1.21.0
