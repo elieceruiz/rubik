@@ -1,45 +1,60 @@
 import streamlit as st
 import random
+import copy
 
-COLORS = {"U": "white", "D": "yellow", "F": "green", "B": "blue", "L": "orange", "R": "red"}
-COLOR_HEX = {"white":"#FFFFFF", "yellow":"#ffec00", "green":"#1eab39", "blue":"#0854aa", "orange":"#ff9900", "red":"#e6000a"}
-
-MOVES = ["R", "Ri", "L", "Li", "U", "Ui", "D", "Di", "F", "Fi", "B", "Bi"]
+# Nombres claros para cada cara
+FACE_NAMES = {
+    "U": "Arriba",
+    "F": "Frontal",
+    "R": "Derecha",
+    "L": "Izquierda",
+    "D": "Abajo",
+    "B": "Atrás"
+}
+COLORS = {
+    "Arriba": "white", "Frontal": "green", "Derecha": "red",
+    "Izquierda": "orange", "Abajo": "yellow", "Atrás": "blue"
+}
+COLOR_HEX = {
+    "white":"#FFFFFF", "yellow":"#ffec00", "green":"#1eab39",
+    "blue":"#0854aa", "orange":"#ff9900", "red":"#e6000a"
+}
+MOVES = ["Derecha (hora)", "Derecha (anti)"]
 EXPLAIN = {
-    "R": "Gira la cara derecha en sentido horario",
-    "Ri": "Gira la cara derecha en sentido antihorario",
-    "L": "Gira la cara izquierda en sentido horario",
-    "Li": "Gira la cara izquierda en sentido antihorario"
-    # Puedes agregar más explicaciones para otros movimientos
+    "Derecha (hora)": "Gira la cara derecha en sentido horario.",
+    "Derecha (anti)": "Gira la cara derecha en sentido antihorario."
 }
 
 def cubo_resuelto():
-    return {c: [COLORS[c]]*9 for c in COLORS}
+    return {name: [color]*9 for name, color in COLORS.items()}
 
-def aplicar_movimiento(cube, movimiento):
-    # Solo definimos unos movimientos para demo
-    if movimiento == "R":
-        old = cube["R"][:]
-        cube["R"] = [old[6],old[3],old[0],old[7],old[4],old[1],old[8],old[5],old[2]]
-    if movimiento == "Ri":
-        for _ in range(3): cube = aplicar_movimiento(cube, "R")
-    if movimiento == "L":
-        old = cube["L"][:]
-        cube["L"] = [old[6],old[3],old[0],old[7],old[4],old[1],old[8],old[5],old[2]]
-    if movimiento == "Li":
-        for _ in range(3): cube = aplicar_movimiento(cube, "L")
-    # Puedes agregar D, U, F, B si quieres más realismo
+def move_Derecha_hora(cube):
+    c = copy.deepcopy(cube)
+    cube["Derecha"] = [c["Derecha"][6],c["Derecha"][3],c["Derecha"][0],
+                       c["Derecha"][7],c["Derecha"][4],c["Derecha"][1],
+                       c["Derecha"][8],c["Derecha"][5],c["Derecha"][2]]
+    # Simplificado: solo giro visual en la cara
     return cube
 
-def mezclar_cubo(n=8):
+def move_Derecha_anti(cube):
+    for _ in range(3):
+        cube = move_Derecha_hora(cube)
+    return cube
+
+ROTATION_FUNCS = {
+    "Derecha (hora)": move_Derecha_hora,
+    "Derecha (anti)": move_Derecha_anti
+}
+
+def mezclar_cubo(n=6):
     cube = cubo_resuelto()
-    mezcla = random.choices(list(EXPLAIN.keys()), k=n)
+    mezcla = random.choices(list(ROTATION_FUNCS.keys()), k=n)
     for mov in mezcla:
-        cube = aplicar_movimiento(cube, mov)
+        cube = ROTATION_FUNCS[mov](cube)
     return cube, mezcla
 
-def draw_face(face, name):
-    html = f"<b>{name}</b><br><table style='border-collapse:collapse;border:2px solid black;'>"
+def dibujar_cara(face, nombre):
+    html = f"<b>{nombre}</b><br><table style='border-collapse:collapse;border:2px solid black;'>"
     for i in range(3):
         html += "<tr>"
         for j in range(3):
@@ -49,37 +64,37 @@ def draw_face(face, name):
     html += "</table>"
     return html
 
-def draw_cube(cube):
-    for x in ["U", "F", "R", "L", "D", "B"]:
-        st.markdown(draw_face(cube[x], x), unsafe_allow_html=True)
+def dibujar_cubo(cube):
+    for name in ["Arriba","Frontal","Derecha","Izquierda","Abajo","Atrás"]:
+        st.markdown(dibujar_cara(cube[name], name), unsafe_allow_html=True)
 
-st.title("Rubik 3x3 Interactivo - Aleatorio y Solución Manual")
+st.title("Rubik paso a paso - con nombres claros")
 
 if "cube" not in st.session_state:
-    cube, scramble = mezclar_cubo(8)
+    cube, scramble = mezclar_cubo(6)
     st.session_state.cube = cube
     st.session_state.scramble = scramble
     st.session_state.solve_seq = scramble[::-1]
     st.session_state.step = 0
 
 if st.button("Nuevo cubo aleatorio"):
-    cube, scramble = mezclar_cubo(8)
+    cube, scramble = mezclar_cubo(6)
     st.session_state.cube = cube
     st.session_state.scramble = scramble
     st.session_state.solve_seq = scramble[::-1]
     st.session_state.step = 0
 
-st.markdown("### Estado actual del cubo (las 6 caras)")
-draw_cube(st.session_state.cube)
-st.markdown(f"**Mezcla aplicada:** {' → '.join(st.session_state.scramble)}")
-st.markdown(f"**Secuencia para resolver:** {' → '.join(st.session_state.solve_seq)}")
+st.markdown("### Estado actual del cubo (6 caras en plano)")
+dibujar_cubo(st.session_state.cube)
+
 if st.session_state.step < len(st.session_state.solve_seq):
-    next_move = st.session_state.solve_seq[st.session_state.step]
-    st.info(f"Siguiente: {EXPLAIN[next_move]}")
-    if st.button("Aplicar siguiente movimiento para resolver"):
-        st.session_state.cube = aplicar_movimiento(st.session_state.cube, next_move)
+    siguiente = st.session_state.solve_seq[st.session_state.step]
+    st.info(f"Siguiente movimiento: {EXPLAIN[siguiente]}")
+    if st.button("Aplicar siguiente movimiento"):
+        st.session_state.cube = ROTATION_FUNCS[siguiente](st.session_state.cube)
         st.session_state.step += 1
+        st.experimental_rerun()
 else:
     st.success("¡Cubo resuelto! Puedes mezclar de nuevo o probar otro reto.")
 
-st.caption("Este flujo es totalmente soportado en Streamlit Cloud: no usa dependencias externas ni compilación especial.")
+st.caption("Todo el flujo usa nombres completos y explica cada giro de manera clara.")
