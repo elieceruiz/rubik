@@ -5,7 +5,6 @@ import random
 import time
 from pymongo import MongoClient
 
-# Conexión MongoDB
 mongo_uri = st.secrets["mongo_uri"]
 client = MongoClient(mongo_uri)
 db = client.rubikdb
@@ -18,6 +17,22 @@ CARAS_INFO = [
     ("Abajo", "yellow", "#ffec00"),
     ("Izquierda", "orange", "#ff9900"),
     ("Derecha", "red", "#e6000a"),
+]
+
+# Instrucciones didácticas
+INSTRUCCIONES = [
+    ("Girar el borde derecho hacia el frente", "Derecha"),
+    ("Girar el borde derecho hacia atrás", "Derecha"),
+    ("Girar la cara frontal hacia la derecha", "Frontal"),
+    ("Girar la cara frontal hacia la izquierda", "Frontal"),
+    ("Girar la cara de atrás hacia la derecha", "Atrás"),
+    ("Girar la cara de atrás hacia la izquierda", "Atrás"),
+    ("Girar la cara izquierda hacia el frente", "Izquierda"),
+    ("Girar la cara izquierda hacia atrás", "Izquierda"),
+    ("Girar la cara inferior hacia la derecha", "Abajo"),
+    ("Girar la cara inferior hacia la izquierda", "Abajo"),
+    ("Girar la cara superior hacia la derecha", "Arriba"),
+    ("Girar la cara superior hacia la izquierda", "Arriba"),
 ]
 
 def crear_cubos():
@@ -42,18 +57,6 @@ def cubo_resuelto():
         else: color = "gray"
         colores.append(color)
     return posiciones, colores
-
-def mezclar_cubo(posiciones, colores, pasos=8):
-    history = [
-        ("Gira la cara frontal a la derecha", "Frontal"),
-        ("Gira la cara superior a la derecha", "Arriba"),
-        ("Gira la cara derecha hacia arriba", "Derecha"),
-        ("Gira la cara izquierda hacia arriba", "Izquierda"),
-        ("Gira la cara abajo a la derecha", "Abajo"),
-        ("Gira la cara trasera a la derecha", "Atrás"),
-    ]
-    movs = [random.choice(history) for _ in range(pasos)]
-    return colores.copy(), movs
 
 def aplicar_giro(cube_colors, posiciones, cara):
     colores = cube_colors.copy()
@@ -92,6 +95,38 @@ def aplicar_giro(cube_colors, posiciones, cara):
         colores[idx] = rotada[k]
     return colores
 
+def reorientar_amarillo_arriba(posiciones, colores):
+    centros = [(0, 1, 0), (0, -1, 0), (1, 0, 0), (-1, 0, 0), (0, 0, 1), (0, 0, -1)]
+    idx_amarillo = None
+    for centro in centros:
+        idx = posiciones.index(centro)
+        if colores[idx] == "yellow":
+            idx_amarillo = centro
+            break
+    if idx_amarillo is None or idx_amarillo == (0,1,0):
+        return posiciones, colores
+    if idx_amarillo == (0,-1,0):
+        pos_nueva = [(x,-y,z) for x,y,z in posiciones]
+        col_nueva = [colores[posiciones.index((x,-y,z))] for x,y,z in posiciones]
+        return pos_nueva, col_nueva
+    if idx_amarillo == (0,0,1):
+        pos_nueva = [(x,z,-y) for x,y,z in posiciones]
+        col_nueva = [colores[posiciones.index((x,z,-y))] for x,y,z in posiciones]
+        return pos_nueva, col_nueva
+    if idx_amarillo == (0,0,-1):
+        pos_nueva = [(x,-z,y) for x,y,z in posiciones]
+        col_nueva = [colores[posiciones.index((x,-z,y))] for x,y,z in posiciones]
+        return pos_nueva, col_nueva
+    if idx_amarillo == (1,0,0):
+        pos_nueva = [(y,-x,z) for x,y,z in posiciones]
+        col_nueva = [colores[posiciones.index((y,-x,z))] for x,y,z in posiciones]
+        return pos_nueva, col_nueva
+    if idx_amarillo == (-1,0,0):
+        pos_nueva = [(-y,x,z) for x,y,z in posiciones]
+        col_nueva = [colores[posiciones.index((-y,x,z))] for x,y,z in posiciones]
+        return pos_nueva, col_nueva
+    return posiciones, colores
+
 def plot_cubo3d(posiciones, colores):
     fig = go.Figure()
     color_map = {
@@ -124,7 +159,7 @@ def plot_cubo3d(posiciones, colores):
     height=580)
     return fig
 
-st.title("Rubik 3D didáctico, compacto, con pistas y MongoDB")
+st.title("Rubik 3D con movimientos y instrucción didáctica")
 
 st.markdown(
     "<b>Caras del cubo:</b><br>" +
@@ -135,55 +170,56 @@ st.markdown(
 if (
     "cubo3d_pos" not in st.session_state
     or "cubo3d_col" not in st.session_state
-    or "movs" not in st.session_state
+    or "movimientos" not in st.session_state
 ):
     pos, col = cubo_resuelto()
-    col, movs = mezclar_cubo(pos, col, pasos=6)
+    movimientos = [random.choice(INSTRUCCIONES) for _ in range(random.randint(20,40))]
+    for _, cara in movimientos:
+        col = aplicar_giro(col, pos, cara)
+    pos, col = reorientar_amarillo_arriba(pos, col)
     st.session_state.cubo3d_pos = pos
     st.session_state.cubo3d_col = col
-    st.session_state.movs = movs
-    st.session_state.step = 0
+    st.session_state.movimientos = movimientos
+    st.session_state.paso = 0
 
 if st.button("Nuevo cubo desordenado"):
-    with st.spinner("Mezclando cubo..."):
+    with st.spinner("Mezclando cubo y asegurando amarillo arriba..."):
         pos, col = cubo_resuelto()
-        col, movs = mezclar_cubo(pos, col, pasos=6)
+        movimientos = [random.choice(INSTRUCCIONES) for _ in range(random.randint(20,40))]
+        for _, cara in movimientos:
+            col = aplicar_giro(col, pos, cara)
+        pos, col = reorientar_amarillo_arriba(pos, col)
         st.session_state.cubo3d_pos = pos
         st.session_state.cubo3d_col = col
-        st.session_state.movs = movs
-        st.session_state.step = 0
+        st.session_state.movimientos = movimientos
+        st.session_state.paso = 0
     st.rerun()
 
 st.plotly_chart(plot_cubo3d(st.session_state.cubo3d_pos, st.session_state.cubo3d_col), use_container_width=True)
 
-st.markdown("#### Instrucción siguiente")
-if st.session_state.step < len(st.session_state.movs):
-    descripcion, cara_giro = st.session_state.movs[st.session_state.step]
-    pasos_restantes = len(st.session_state.movs) - st.session_state.step
+st.markdown("#### Paso didáctico")
+if st.session_state.paso < len(st.session_state.movimientos):
+    instruccion, cara_giro = st.session_state.movimientos[st.session_state.paso]
+    pasos_restantes = len(st.session_state.movimientos) - st.session_state.paso
     if st.button("Aplicar este movimiento"):
-        with st.spinner(f"Ejecutando: {descripcion}..."):
+        with st.spinner(f"Ejecutando: {instruccion}..."):
             time.sleep(0.7)
             nuevo_col = aplicar_giro(st.session_state.cubo3d_col, st.session_state.cubo3d_pos, cara_giro)
             st.session_state.cubo3d_col = nuevo_col
-            st.session_state.step += 1
+            st.session_state.paso += 1
         st.rerun()
-    st.info(f"{descripcion} ({pasos_restantes} pasos por resolver)")
+    st.info(f"Instrucción: {instruccion} 
+Quedan {pasos_restantes} movimientos por resolver")
 else:
-    st.success("¡Cubo resuelto! Mezcla de nuevo para otro reto.")
+    st.success("¡Llegaste al final! Mezcla de nuevo para otro reto.")
 
 if st.button("Guardar estado actual en MongoDB"):
     with st.spinner("Guardando estado en base de datos..."):
         doc = {
             "colores":  st.session_state.cubo3d_col,
             "posiciones": st.session_state.cubo3d_pos,
-            "mezcla": [mv[1] for mv in st.session_state.movs],
-            "pasos_restantes": len(st.session_state.movs) - st.session_state.step
+            "movimientos": st.session_state.movimientos,
+            "paso_actual": st.session_state.paso
         }
         result = collection.insert_one(doc)
     st.success(f"Estado guardado en MongoDB (ID: {result.inserted_id})")
-
-# requirements.txt:
-# streamlit>=1.26.0
-# plotly>=5.15.0
-# numpy>=1.21.0
-# pymongo>=4.3.3
