@@ -2,7 +2,6 @@ import streamlit as st
 import random
 import copy
 
-# Nombres de las caras
 FACE_NAMES = ["Arriba", "Frontal", "Derecha", "Izquierda", "Abajo", "Atrás"]
 COLOR_MAP = {
     "Arriba": "white", "Frontal": "green", "Derecha": "red",
@@ -12,14 +11,11 @@ COLOR_HEX = {
     "white":"#FFFFFF", "yellow":"#ffec00", "green":"#1eab39",
     "blue":"#0854aa", "orange":"#ff9900", "red":"#e6000a"
 }
-
-# Movimientos disponibles (solo unos ejemplos didácticos)
 MOVES = [
     ("Arriba", "derecha"), ("Arriba", "izquierda"),
     ("Frontal", "derecha"), ("Frontal", "izquierda"),
     ("Derecha", "abajo"), ("Derecha", "arriba")
 ]
-
 INSTRUCTIONS = {
     ("Arriba", "derecha"): "Gira la cara de arriba hacia la derecha.",
     ("Arriba", "izquierda"): "Gira la cara de arriba hacia la izquierda.",
@@ -34,17 +30,15 @@ def cubo_resuelto():
 
 def aplicar_movimiento(cube, move):
     c = copy.deepcopy(cube)
-    # Demo visual: solo rota la cara correspondiente de forma horaria o antihoraria
     cara, direccion = move
     if direccion == "derecha" or direccion == "abajo":
         cube[cara] = [c[cara][6],c[cara][3],c[cara][0],c[cara][7],c[cara][4],c[cara][1],c[cara][8],c[cara][5],c[cara][2]]
     elif direccion == "izquierda" or direccion == "arriba":
-        # antihorario: tres veces horario
         for _ in range(3):
             cube = aplicar_movimiento(cube, (cara, "derecha" if direccion == "izquierda" else "abajo"))
     return cube
 
-def mezclar_cubo(n=6):
+def mezclar_cubo(n=7):
     cube = cubo_resuelto()
     mezcla = random.choices(MOVES, k=n)
     for mov in mezcla:
@@ -69,20 +63,22 @@ def dibujar_cubo(cube):
 st.title("Rubik paso a paso - instrucciones didácticas")
 st.caption("Siempre inicia desordenado y te guía un movimiento claro por paso.")
 
-if "cube" not in st.session_state:
+# Esto asegura que SIEMPRE inicia desordenado al cargar/reiniciar
+if "init" not in st.session_state:
     cube, scramble = mezclar_cubo(7)
     st.session_state.cube = cube
     st.session_state.scramble = scramble
     st.session_state.solve_seq = scramble[::-1]
     st.session_state.step = 0
+    st.session_state.init = True
 
+# Botón para nuevo cubo desordenado
 if st.button("Nuevo cubo desordenado"):
     cube, scramble = mezclar_cubo(7)
     st.session_state.cube = cube
     st.session_state.scramble = scramble
     st.session_state.solve_seq = scramble[::-1]
     st.session_state.step = 0
-    st.rerun()
 
 st.markdown("### Estado actual del cubo (6 caras)")
 dibujar_cubo(st.session_state.cube)
@@ -93,8 +89,7 @@ if st.session_state.step < len(st.session_state.solve_seq):
     if st.button("Aplicar siguiente movimiento"):
         st.session_state.cube = aplicar_movimiento(st.session_state.cube, siguiente)
         st.session_state.step += 1
-        st.rerun()
 else:
     st.success("¡Cubo resuelto! Puedes mezclar de nuevo o experimentar.")
 
-st.caption("Los movimientos y caras siempre aparecen con nombre completo y explicación sencilla.")
+st.caption("Sin 'st.rerun' ni experimental, sí inicia y actualiza desordenado cada vez.")
