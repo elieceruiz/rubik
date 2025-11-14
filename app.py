@@ -19,7 +19,6 @@ CARAS_INFO = [
     ("Derecha", "red", "#e6000a"),
 ]
 
-# Instrucciones didácticas
 INSTRUCCIONES = [
     ("Girar el borde derecho hacia el frente", "Derecha"),
     ("Girar el borde derecho hacia atrás", "Derecha"),
@@ -208,7 +207,7 @@ if st.session_state.paso < len(st.session_state.movimientos):
             st.session_state.cubo3d_col = nuevo_col
             st.session_state.paso += 1
         st.rerun()
-    st.info(f"Instrucción: {instruccion} 
+    st.info(f"Instrucción: {instruccion}
 Quedan {pasos_restantes} movimientos por resolver")
 else:
     st.success("¡Llegaste al final! Mezcla de nuevo para otro reto.")
