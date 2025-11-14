@@ -32,7 +32,6 @@ def crear_cubos():
 def cubo_resuelto():
     posiciones = crear_cubos()
     colores = []
-    # Asignar color por posición (solo una cara dominante visual)
     for x, y, z in posiciones:
         if z == 1: color = "green"
         elif z == -1: color = "blue"
@@ -45,7 +44,6 @@ def cubo_resuelto():
     return posiciones, colores
 
 def mezclar_cubo(posiciones, colores, pasos=8):
-    idxs = list(range(len(colores)))
     history = [
         ("Gira la cara frontal a la derecha", "Frontal"),
         ("Gira la cara superior a la derecha", "Arriba"),
@@ -54,42 +52,44 @@ def mezclar_cubo(posiciones, colores, pasos=8):
         ("Gira la cara abajo a la derecha", "Abajo"),
         ("Gira la cara trasera a la derecha", "Atrás"),
     ]
-    movs = []
-    colores_cur = colores.copy()
-    for _ in range(pasos):
-        mov = random.choice(history)
-        movs.append(mov)
-    return colores_cur, movs
+    movs = [random.choice(history) for _ in range(pasos)]
+    return colores.copy(), movs
 
 def aplicar_giro(cube_colors, posiciones, cara):
     colores = cube_colors.copy()
-    # Asume los 9 cubos en plano correspondiente, gira en sentido horario
     if cara == "Frontal":
         idxs = [i for i, p in enumerate(posiciones) if p[2] == 1]
+        cara_pos = [posiciones[i] for i in idxs]
+        cara_grid = sorted(cara_pos, key=lambda p: (-p[1], p[0]))
     elif cara == "Atrás":
         idxs = [i for i, p in enumerate(posiciones) if p[2] == -1]
+        cara_pos = [posiciones[i] for i in idxs]
+        cara_grid = sorted(cara_pos, key=lambda p: (p[1], -p[0]))
     elif cara == "Arriba":
         idxs = [i for i, p in enumerate(posiciones) if p[1] == 1]
+        cara_pos = [posiciones[i] for i in idxs]
+        cara_grid = sorted(cara_pos, key=lambda p: (p[2], p[0]))
     elif cara == "Abajo":
         idxs = [i for i, p in enumerate(posiciones) if p[1] == -1]
+        cara_pos = [posiciones[i] for i in idxs]
+        cara_grid = sorted(cara_pos, key=lambda p: (-p[2], p[0]))
     elif cara == "Izquierda":
         idxs = [i for i, p in enumerate(posiciones) if p[0] == -1]
+        cara_pos = [posiciones[i] for i in idxs]
+        cara_grid = sorted(cara_pos, key=lambda p: (-p[1], p[2]))
     elif cara == "Derecha":
         idxs = [i for i, p in enumerate(posiciones) if p[0] == 1]
+        cara_pos = [posiciones[i] for i in idxs]
+        cara_grid = sorted(cara_pos, key=lambda p: (-p[1], -p[2]))
     else:
-        idxs = []
-    # Ordeno clock-wise en matriz 3x3 para giro horario (mapeo fijo)
-    if len(idxs) == 9:
-        # Posiciones en matriz 3x3 (i,j): [0,1,2,5,8,7,6,3] + centro
-        rel = [
-            idxs[0], idxs[1], idxs[2],
-            idxs[5], idxs[8], idxs[7],
-            idxs[6], idxs[3]
-        ]
-        original = [colores[i] for i in rel]
-        rotada = [original[-2]] + original[:-2]
-        for j, idx in enumerate(rel):
-            colores[idx] = rotada[j]
+        return colores
+    idxs_ord = [posiciones.index(p) for p in cara_grid]
+    colores_cara = [colores[i] for i in idxs_ord]
+    rotada = [colores_cara[6], colores_cara[3], colores_cara[0],
+              colores_cara[7], colores_cara[4], colores_cara[1],
+              colores_cara[8], colores_cara[5], colores_cara[2]]
+    for k, idx in enumerate(idxs_ord):
+        colores[idx] = rotada[k]
     return colores
 
 def plot_cubo3d(posiciones, colores):
@@ -124,7 +124,7 @@ def plot_cubo3d(posiciones, colores):
     height=580)
     return fig
 
-st.title("Rubik 3D didáctico, compacto, con pistas de cara y MongoDB")
+st.title("Rubik 3D didáctico, compacto, con pistas y MongoDB")
 
 st.markdown(
     "<b>Caras del cubo:</b><br>" +
@@ -152,6 +152,7 @@ if st.button("Nuevo cubo desordenado"):
         st.session_state.cubo3d_col = col
         st.session_state.movs = movs
         st.session_state.step = 0
+    st.experimental_rerun()
 
 st.plotly_chart(plot_cubo3d(st.session_state.cubo3d_pos, st.session_state.cubo3d_col), use_container_width=True)
 
@@ -165,6 +166,7 @@ if st.session_state.step < len(st.session_state.movs):
             nuevo_col = aplicar_giro(st.session_state.cubo3d_col, st.session_state.cubo3d_pos, cara_giro)
             st.session_state.cubo3d_col = nuevo_col
             st.session_state.step += 1
+        st.experimental_rerun()
     st.info(f"{descripcion} ({pasos_restantes} pasos por resolver)")
 else:
     st.success("¡Cubo resuelto! Mezcla de nuevo para otro reto.")
