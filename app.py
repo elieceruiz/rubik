@@ -66,11 +66,18 @@ def dibujar_cubo(cube):
     for nombre in FACE_NAMES:
         st.markdown(dibujar_cara(cube[nombre], nombre), unsafe_allow_html=True)
 
-st.title("Rubik paso a paso - instrucciones didácticas + Guardar en MongoDB")
-st.caption("Siempre inicia desordenado y te guía un movimiento claro por paso.")
+st.title("Rubik paso a paso - SIEMPRE inicia desordenado")
 
-# Botón para mezclar primero SIEMPRE
-if st.button("Nuevo cubo desordenado") or "cube" not in st.session_state:
+# ¡Solución! --- Mezclar SIEMPRE al iniciar
+if st.session_state.get("force_mezcla", True):
+    cube, scramble = mezclar_cubo(7)
+    st.session_state.cube = cube
+    st.session_state.scramble = scramble
+    st.session_state.solve_seq = scramble[::-1]
+    st.session_state.step = 0
+    st.session_state.force_mezcla = False
+
+if st.button("Nuevo cubo desordenado"):
     cube, scramble = mezclar_cubo(7)
     st.session_state.cube = cube
     st.session_state.scramble = scramble
@@ -97,5 +104,3 @@ if st.button("Guardar estado actual en MongoDB"):
     }
     result = collection.insert_one(doc)
     st.success(f"Estado guardado en MongoDB (ID: {result.inserted_id})")
-
-st.caption("Puedes guardar cualquier estado del cubo y sus pasos en tu base MongoDB con tu mongo_uri de Secrets.")
