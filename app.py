@@ -32,42 +32,65 @@ def crear_cubos():
 def cubo_resuelto():
     posiciones = crear_cubos()
     colores = []
+    # Asignar color por posición (solo una cara dominante visual)
     for x, y, z in posiciones:
-        if z == 1:
-            color = "green"
-        elif z == -1:
-            color = "blue"
-        elif y == 1:
-            color = "white"
-        elif y == -1:
-            color = "yellow"
-        elif x == 1:
-            color = "red"
-        elif x == -1:
-            color = "orange"
-        else:
-            color = "gray"
+        if z == 1: color = "green"
+        elif z == -1: color = "blue"
+        elif y == 1: color = "white"
+        elif y == -1: color = "yellow"
+        elif x == 1: color = "red"
+        elif x == -1: color = "orange"
+        else: color = "gray"
         colores.append(color)
     return posiciones, colores
 
 def mezclar_cubo(posiciones, colores, pasos=8):
     idxs = list(range(len(colores)))
     history = [
-        ("Gira la cara superior a la derecha", "Arriba a la derecha"),
-        ("Gira la cara derecha hacia arriba", "Derecha hacia arriba"),
-        ("Gira la cara frontal a la derecha", "Frontal a la derecha"),
-        ("Gira la cara izquierda hacia arriba", "Izquierda hacia arriba"),
-        ("Gira la cara abajo a la derecha", "Abajo a la derecha"),
-        ("Gira la cara trasera a la derecha", "Atrás a la derecha"),
+        ("Gira la cara frontal a la derecha", "Frontal"),
+        ("Gira la cara superior a la derecha", "Arriba"),
+        ("Gira la cara derecha hacia arriba", "Derecha"),
+        ("Gira la cara izquierda hacia arriba", "Izquierda"),
+        ("Gira la cara abajo a la derecha", "Abajo"),
+        ("Gira la cara trasera a la derecha", "Atrás"),
     ]
     movs = []
     colores_cur = colores.copy()
     for _ in range(pasos):
-        random.shuffle(idxs)
-        colores_cur = [colores_cur[j] for j in idxs]
         mov = random.choice(history)
         movs.append(mov)
     return colores_cur, movs
+
+def aplicar_giro(cube_colors, posiciones, cara):
+    colores = cube_colors.copy()
+    # Asume los 9 cubos en plano correspondiente, gira en sentido horario
+    if cara == "Frontal":
+        idxs = [i for i, p in enumerate(posiciones) if p[2] == 1]
+    elif cara == "Atrás":
+        idxs = [i for i, p in enumerate(posiciones) if p[2] == -1]
+    elif cara == "Arriba":
+        idxs = [i for i, p in enumerate(posiciones) if p[1] == 1]
+    elif cara == "Abajo":
+        idxs = [i for i, p in enumerate(posiciones) if p[1] == -1]
+    elif cara == "Izquierda":
+        idxs = [i for i, p in enumerate(posiciones) if p[0] == -1]
+    elif cara == "Derecha":
+        idxs = [i for i, p in enumerate(posiciones) if p[0] == 1]
+    else:
+        idxs = []
+    # Ordeno clock-wise en matriz 3x3 para giro horario (mapeo fijo)
+    if len(idxs) == 9:
+        # Posiciones en matriz 3x3 (i,j): [0,1,2,5,8,7,6,3] + centro
+        rel = [
+            idxs[0], idxs[1], idxs[2],
+            idxs[5], idxs[8], idxs[7],
+            idxs[6], idxs[3]
+        ]
+        original = [colores[i] for i in rel]
+        rotada = [original[-2]] + original[:-2]
+        for j, idx in enumerate(rel):
+            colores[idx] = rotada[j]
+    return colores
 
 def plot_cubo3d(posiciones, colores):
     fig = go.Figure()
@@ -101,13 +124,12 @@ def plot_cubo3d(posiciones, colores):
     height=580)
     return fig
 
-st.title("Rubik 3D didáctico, compacto, con MongoDB y pistas visuales")
+st.title("Rubik 3D didáctico, compacto, con pistas de cara y MongoDB")
 
-# Pistas de qué color es cada cara
 st.markdown(
     "<b>Caras del cubo:</b><br>" +
-    "".join([f"- <span style='color:{hexa}'>{nombre}: {color.capitalize()}</span><br>" for nombre, color, hexa in CARAS_INFO]),
-    unsafe_allow_html=True,
+    "".join([f"- <span style='color:{hexa}'><b>{nombre}:</b> {color.capitalize()}</span><br>" for nombre, color, hexa in CARAS_INFO]),
+    unsafe_allow_html=True
 )
 
 if (
@@ -135,11 +157,13 @@ st.plotly_chart(plot_cubo3d(st.session_state.cubo3d_pos, st.session_state.cubo3d
 
 st.markdown("#### Instrucción siguiente")
 if st.session_state.step < len(st.session_state.movs):
-    descripcion, didactico = st.session_state.movs[st.session_state.step]
+    descripcion, cara_giro = st.session_state.movs[st.session_state.step]
     pasos_restantes = len(st.session_state.movs) - st.session_state.step
     if st.button("Aplicar este movimiento"):
         with st.spinner(f"Ejecutando: {descripcion}..."):
-            time.sleep(0.7) # Simula procesamiento
+            time.sleep(0.7)
+            nuevo_col = aplicar_giro(st.session_state.cubo3d_col, st.session_state.cubo3d_pos, cara_giro)
+            st.session_state.cubo3d_col = nuevo_col
             st.session_state.step += 1
     st.info(f"{descripcion} ({pasos_restantes} pasos por resolver)")
 else:
