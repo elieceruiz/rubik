@@ -1,3 +1,5 @@
+# requirements.txt
 streamlit
 plotly
 numpy
+pymongo
