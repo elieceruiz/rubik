@@ -1,55 +1,59 @@
 import streamlit as st
+import random
+from rubik_solver import utils
 
-color_options = ["white", "yellow", "green", "blue", "orange", "red"]
-color_labels = {
-    "white": "⬜ Blanco",
-    "yellow": "🟨 Amarillo",
-    "green": "🟩 Verde",
-    "blue": "🟦 Azul",
-    "orange": "🟧 Naranja",
-    "red": "🟥 Rojo"
-}
+# Diccionario para mapeo visual (¡no cambiar!)
+color_hex = {"W":"#fff", "Y":"#ffec00", "G":"#1eab39", "B":"#0854aa", "O":"#ff9900", "R":"#e6000a"}
+order = ['U', 'R', 'F', 'D', 'L', 'B']  # Kociemba/rubik_solver face order
 
-# Inicializa la cuadrícula de la cara superior (U)
-if "face_grid" not in st.session_state:
-    st.session_state.face_grid = [["white"]*3 for _ in range(3)]
+def random_cube_state():
+    # Crea la string del cubo mezclado usando rubik_solver (mejora sobre aleatorio puro)
+    scramble = utils.gen_scramble()
+    cube_str = utils.apply_scramble(utils.solve("UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB", "Beginner"), scramble)
+    return cube_str, scramble
 
-st.title("Configura la cara superior (U) de tu cubo Rubik")
+def draw_cube(cube_str):
+    faces = {face: list(cube_str[i*9:(i+1)*9]) for i, face in enumerate(order)}
+    face_names = {'U':'Arriba (U)', 'R':'Derecha (R)', 'F':'Frente (F)', 'D':'Abajo (D)', 'L':'Izquierda (L)', 'B':'Atrás (B)'}
+    for face in order:
+        st.markdown(f"**{face_names[face]}**")
+        html = "<table style='border-collapse:collapse;border:2px solid #222;'>"
+        for i in range(3):
+            html += "<tr>"
+            for j in range(3):
+                color = color_hex[faces[face][i*3+j]]
+                html += f"<td style='background:{color};width:36px;height:36px;border:1px solid #444'></td>"
+            html += "</tr>"
+        html += "</table>"
+        st.markdown(html, unsafe_allow_html=True)
 
-st.markdown("### Escoge el color de cada sticker de la cara de arriba, igual a tu cubo físico:")
+st.title("Rubik's Cube - Aleatorio y Solución Óptima")
 
-for i in range(3):
-    cols = st.columns(3)
-    for j in range(3):
-        current = st.session_state.face_grid[i][j]
-        st.session_state.face_grid[i][j] = cols[j].selectbox(
-            f"Sticker ({i+1},{j+1})", 
-            options=color_options,
-            format_func=lambda x: color_labels[x],
-            index=color_options.index(current),
-            key=f"sticker_{i}_{j}"
-        )
+# Estado inicial: cubo aleatorio válido y scramble
+if "cube_str" not in st.session_state:
+    cube_str, scramble = random_cube_state()
+    st.session_state.cube_str = cube_str
+    st.session_state.scramble = scramble
 
-st.markdown("### Vista previa de tu cara superior (U):")
-def draw_face_grid(grid):
-    color_hex = {"white":"#FFFFFF", "yellow":"#ffec00", "green":"#1eab39", 
-                 "blue":"#0854aa", "orange":"#ff9900", "red":"#e6000a"}
-    html = "<table style='border-collapse:collapse;border:2px solid black;'>"
-    for i in range(3):
-        html += "<tr>"
-        for j in range(3):
-            color = color_hex[grid[i][j]]
-            html += f"<td style='background:{color};width:36px;height:36px;border:1px solid #333'></td>"
-        html += "</tr>"
-    html += "</table>"
-    return html
+if st.button("Nuevo cubo aleatorio"):
+    cube_str, scramble = random_cube_state()
+    st.session_state.cube_str = cube_str
+    st.session_state.scramble = scramble
 
-st.markdown(draw_face_grid(st.session_state.face_grid), unsafe_allow_html=True)
+st.markdown("### Estado del cubo mezclado")
+draw_cube(st.session_state.cube_str)
 
-# Aquí podrías almacenar, procesar o pasar este grid a resolver el cubo
-if st.button("Guardar configuración de la cara superior"):
-    st.success("¡Configuración guardada! Ahora puedes usar estos datos para guiar a la app o resolver paso a paso.")
+st.markdown(f"**Secuencia de mezcla aplicada:** {' '.join(st.session_state.scramble)}")
 
-st.info("Cuando pulses el botón guardar, puedes extender para completar las otras caras, o pasar a una lógica de solución.")
+# ---- SOLUCIÓN -----
+try:
+    solution = utils.solve(st.session_state.cube_str, "Kociemba")
+    st.success(f"Secuencia óptima de solución encontrara: {len(solution)} movimientos")
+    st.markdown(f"**Movimientos para resolver:** {' '.join(solution)}")
+    # Explicación paso a paso
+    for idx, move in enumerate(solution, 1):
+        st.info(f"Paso {idx}: Realiza el giro {move}")
+except Exception as e:
+    st.error(f"No se pudo calcular la solución. ¿El cubo es válido? Error: {e}")
 
-# Si quieres que este flujo se repita para otras caras (D, F, L, R, B), ajusta la misma lógica y guarda cada una como una variable en session_state.
+st.caption("Powered by rubik_solver (basado en Kociemba). Puedes usar esto como simulador, reto o tutorial.")
