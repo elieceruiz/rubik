@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
 import random
+import time
 from pymongo import MongoClient
 
 # Conexión MongoDB
@@ -10,13 +11,13 @@ client = MongoClient(mongo_uri)
 db = client.rubikdb
 collection = db.cubos3d
 
-CARAS = [
-    ("Frontal", "green"),
-    ("Atrás", "blue"),
-    ("Arriba", "white"),
-    ("Abajo", "yellow"),
-    ("Izquierda", "orange"),
-    ("Derecha", "red"),
+CARAS_INFO = [
+    ("Frontal", "green", "#1eab39"),
+    ("Atrás", "blue", "#0854aa"),
+    ("Arriba", "white", "#FFFFFF"),
+    ("Abajo", "yellow", "#ffec00"),
+    ("Izquierda", "orange", "#ff9900"),
+    ("Derecha", "red", "#e6000a"),
 ]
 
 def crear_cubos():
@@ -100,7 +101,14 @@ def plot_cubo3d(posiciones, colores):
     height=580)
     return fig
 
-st.title("Rubik 3D didáctico, compacto y con MongoDB")
+st.title("Rubik 3D didáctico, compacto, con MongoDB y pistas visuales")
+
+# Pistas de qué color es cada cara
+st.markdown(
+    "<b>Caras del cubo:</b><br>" +
+    "".join([f"- <span style='color:{hexa}'>{nombre}: {color.capitalize()}</span><br>" for nombre, color, hexa in CARAS_INFO]),
+    unsafe_allow_html=True,
+)
 
 if (
     "cubo3d_pos" not in st.session_state
@@ -115,46 +123,40 @@ if (
     st.session_state.step = 0
 
 if st.button("Nuevo cubo desordenado"):
-    pos, col = cubo_resuelto()
-    col, movs = mezclar_cubo(pos, col, pasos=6)
-    st.session_state.cubo3d_pos = pos
-    st.session_state.cubo3d_col = col
-    st.session_state.movs = movs
-    st.session_state.step = 0
+    with st.spinner("Mezclando cubo..."):
+        pos, col = cubo_resuelto()
+        col, movs = mezclar_cubo(pos, col, pasos=6)
+        st.session_state.cubo3d_pos = pos
+        st.session_state.cubo3d_col = col
+        st.session_state.movs = movs
+        st.session_state.step = 0
 
 st.plotly_chart(plot_cubo3d(st.session_state.cubo3d_pos, st.session_state.cubo3d_col), use_container_width=True)
-
-st.markdown("""
-<b>Caras del cubo:</b><br>
-- <span style='color:#1eab39'>Frontal: Verde</span><br>
-- <span style='color:#0854aa'>Atrás: Azul</span><br>
-- <span style='color:#FFFFFF'>Arriba: Blanco</span><br>
-- <span style='color:#ffec00'>Abajo: Amarillo</span><br>
-- <span style='color:#ff9900'>Izquierda: Naranja</span><br>
-- <span style='color:#e6000a'>Derecha: Rojo</span>
-""", unsafe_allow_html=True)
 
 st.markdown("#### Instrucción siguiente")
 if st.session_state.step < len(st.session_state.movs):
     descripcion, didactico = st.session_state.movs[st.session_state.step]
     pasos_restantes = len(st.session_state.movs) - st.session_state.step
-    st.info(f"{descripcion} ({pasos_restantes} pasos por resolver)")
     if st.button("Aplicar este movimiento"):
-        st.session_state.step += 1
+        with st.spinner(f"Ejecutando: {descripcion}..."):
+            time.sleep(0.7) # Simula procesamiento
+            st.session_state.step += 1
+    st.info(f"{descripcion} ({pasos_restantes} pasos por resolver)")
 else:
     st.success("¡Cubo resuelto! Mezcla de nuevo para otro reto.")
 
 if st.button("Guardar estado actual en MongoDB"):
-    doc = {
-        "colores":  st.session_state.cubo3d_col,
-        "posiciones": st.session_state.cubo3d_pos,
-        "mezcla": [mv[1] for mv in st.session_state.movs],
-        "pasos_restantes": len(st.session_state.movs) - st.session_state.step
-    }
-    result = collection.insert_one(doc)
+    with st.spinner("Guardando estado en base de datos..."):
+        doc = {
+            "colores":  st.session_state.cubo3d_col,
+            "posiciones": st.session_state.cubo3d_pos,
+            "mezcla": [mv[1] for mv in st.session_state.movs],
+            "pasos_restantes": len(st.session_state.movs) - st.session_state.step
+        }
+        result = collection.insert_one(doc)
     st.success(f"Estado guardado en MongoDB (ID: {result.inserted_id})")
 
-# Requisitos en requirements.txt:
+# requirements.txt:
 # streamlit>=1.18.0
 # plotly>=5.15.0
 # numpy>=1.21.0
